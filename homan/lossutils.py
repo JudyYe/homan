@@ -137,7 +137,7 @@ def compute_ordinal_depth_loss(masks, silhouettes, depths):
         silhouettes (list[torch.Tensor]): [(B, height, width), ...] of len obj_nb
         depths (list[torch.Tensor]): [(B, height, width), ...] of len obj_nb
     """
-    loss = torch.Tensor(0.0).float().cuda()
+    loss = torch.tensor(0.0).float().cuda()
     num_pairs = 0
     # Create square mask to match square renders
     height = masks.shape[2]
@@ -145,11 +145,11 @@ def compute_ordinal_depth_loss(masks, silhouettes, depths):
     silhouettes = [silh[:, :height, :width] for silh in silhouettes]
     depths = [depth[:, :height, :width] for depth in depths]
     # TODO comment
-    imagify.viz_imgrow([
-        masks[0].sum(0), silhouettes[0][0], masks[0][0], silhouettes[1][0],
-        masks[0][1], silhouettes[2][0]
-    ], "tmpdebugsilor.png")
-    imagify.viz_imgrow(depths[0], "tmpdebugdepths.png")
+    # imagify.viz_imgrow([
+    #     masks[0].sum(0), silhouettes[0][0], masks[0][0], silhouettes[1][0],
+    #     masks[0][1], 
+    # ], "tmp/tmpdebugsilor.png")
+    # imagify.viz_imgrow(depths[0], "tmp/tmpdebugdepths.png")
     for i in range(len(silhouettes)):
         for j in range(len(silhouettes)):
             has_pred = silhouettes[i] & silhouettes[j]
@@ -163,7 +163,7 @@ def compute_ordinal_depth_loss(masks, silhouettes, depths):
             if mask.sum() == 0:
                 continue
             dists = torch.clamp(depths[i] - depths[j], min=0.0, max=2.0)
-            loss += torch.sum(
+            loss = loss + torch.sum(
                 torch.log(1 + torch.exp(dists))[mask]) / mask.sum()
     loss /= num_pairs
     return {"loss_depth": loss}

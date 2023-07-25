@@ -1,6 +1,8 @@
 import os.path as osp
 
-EXTERNAL_DIRECTORY = "./external"
+# file path
+ROOT_DIR = osp.dirname(osp.dirname(osp.abspath(__file__)))
+EXTERNAL_DIRECTORY = osp.join(ROOT_DIR, "external")
 
 # Configurations for PointRend.
 POINTREND_PATH = osp.join(EXTERNAL_DIRECTORY, "detectron2/projects/PointRend")

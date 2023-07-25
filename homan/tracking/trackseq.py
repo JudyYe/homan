@@ -66,7 +66,7 @@ def track_sequence(images,
     show_nb = 5
     if viz:
         fig, axes = plt.subplots(2, show_nb, figsize=(4 * show_nb, 8))
-    frame_idxs = np.linspace(0, len(images) - 1, show_nb).astype(np.int)
+    frame_idxs = np.linspace(0, len(images) - 1, show_nb).astype(np.int64)
     for show_idx, frame_idx in enumerate(frame_idxs):
         image = images[frame_idx]
         if isinstance(image, str):

@@ -1,0 +1,46 @@
+defaults:
+  - environment: fair
+  - hydra: default
+
+expname: dev/tmp
+output: ${environment.output}
+exp_dir: ${output}/${expname}
+project_name: 'homan'
+
+cat: Mug
+ind: 1
+index: ${cat}_${ind}
+image_dir: ${environment.data_dir}/HOI4D/${index}/image
+obj_file: ${environment.data_dir}/HOI4D/${index}/oObj.obj
+
+logging: wandb
+
+coarse:
+  lw_inter: 1
+  lw_depth: 1
+  lw_sil_obj: 1.0
+  lw_sil_hand: 0.0
+  lw_collision: 0.0
+  lw_contact: 0.0
+  lw_scale_hand: 0.001
+  lw_scale_obj: 0.001
+  lw_v2d_hand: 50
+  lw_smooth_hand: 2000
+  lw_smooth_obj: 2000
+  lw_pca: 0.004
+  step: 201
+
+fine:
+  lw_inter: 1
+  lw_depth: 1  # orig: 0
+  lw_sil_obj: 1.0
+  lw_sil_hand: 0.0
+  lw_collision: 0.001
+  lw_contact: 1.0
+  lw_scale_hand: 0.001
+  lw_scale_obj: 0.001
+  lw_v2d_hand: 50
+  lw_smooth_hand: 2000
+  lw_smooth_obj: 2000
+  lw_pca: 0.004
+  step: 201

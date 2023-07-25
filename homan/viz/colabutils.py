@@ -6,9 +6,12 @@ from base64 import b64encode
 import os
 
 
-def display_video(video_path, compressed_path="tmp.mp4"):
-    os.system(f"ffmpeg -i {video_path} -vcodec libx264 {compressed_path}")
-
+def display_video(video_path, compressed_path="tmp.mp4"):    
+    # cmd = f"ffmpeg -i {video_path} -vcodec libx264 {compressed_path}"
+    cmd = f'cp {video_path} {compressed_path}'
+    # print(cmd)
+    os.system(cmd)
+    compressed_path = video_path
     # Show video
     mp4 = open(compressed_path, 'rb').read()
     data_url = "data:video/mp4;base64," + b64encode(mp4).decode()

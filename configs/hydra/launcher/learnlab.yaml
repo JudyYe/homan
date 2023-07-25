@@ -1,0 +1,21 @@
+defaults:
+  - submitit_slurm
+
+signal_delay_s: 120
+timeout_min: 1440 
+partition: learnlab
+
+mem_gb: 40 # ${eval:'40*${ngpu}'}
+gpus_per_node: 1 
+tasks_per_node: 1
+cpus_per_task: 10
+nodes: 1
+max_num_timeout: 100
+
+
+submitit_folder: ${exp_dir}/submitit_train_logs/
+name: ${expname}
+constraint: volta32gb
+
+
+exclude:

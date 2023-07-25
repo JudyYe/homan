@@ -7,6 +7,7 @@ import torch
 from torch import nn
 from tqdm import tqdm
 
+import os.path as osp
 from homan import lossutils
 from homan.losses import Losses
 from homan.lossutils import compute_ordinal_depth_loss
@@ -67,7 +68,8 @@ class HOMan(nn.Module):
         translation_init = translations_object.detach().clone()
         self.translations_object = nn.Parameter(translation_init,
                                                 requires_grad=True)
-        self.mano_model = ManoModel("extra_data/mano", pca_comps=16)
+        ROOT_DIR = osp.dirname(osp.dirname(osp.abspath(__file__)))
+        self.mano_model = ManoModel(ROOT_DIR + "/extra_data/mano", pca_comps=16)
         self.hand_proj_mode = hand_proj_mode
 
         rotations_object = rotations_object.detach().clone()
@@ -504,8 +506,31 @@ class HOMan(nn.Module):
                     intrinsic_mean=self.int_scale_hand_mean,
                 )
         if loss_weights is None or loss_weights["lw_depth"] > 0:
-            loss_dict.update(lossutils.compute_ordinal_depth_loss())
+            loss_dict.update(self.compute_ordinal_depth_loss())
         return loss_dict, metric_dict
+
+    # def compute_ordinal_depth_loss(self):
+    #     verts_object = self.get_verts_object()
+    #     # verts_person = self.get_verts_person()
+    #     verts_hand = self.get_verts_hand()
+
+    #     silhouettes = []
+    #     depths = []
+
+    #     for v in verts_object:
+    #         _, depth, sil = self.renderer.render(
+    #             v.unsqueeze(0), self.faces_object, self.textures_object
+    #         )
+    #         depths.append(depth)
+    #         silhouettes.append((sil == 1).bool())
+    #     for v in verts_hand:
+    #         _, depth, sil = self.renderer.render(
+    #             v.unsqueeze(0), self.faces_hand, self.textures_hand
+    #         )
+    #         depths.append(depth)
+    #         silhouettes.append((sil == 1).bool())
+    #     masks = torch.cat((self.masks_object, self.masks_human))
+    #     return lossutils.compute_ordinal_depth_loss(masks, silhouettes, depths)
 
     def render_limem(self,
                      renderer,

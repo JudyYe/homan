@@ -198,4 +198,5 @@ def optimize_hand_object(
     video_path = os.path.join(os.path.dirname(viz_folder), "joint_optim.webm")
     np2vid.make_video(optim_imgs, video_path, fps=fps)
     np2vid.make_video(optim_imgs, video_path.replace(".webm", ".mp4"), fps=fps)
+    print('save to ', video_path, front_top_path.replace(".jpg", f"{fps}.gif"))
     return model, dict(loss_evolution), imgs

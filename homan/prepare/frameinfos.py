@@ -9,29 +9,45 @@ import torch
 from homan.lib2d import maskutils
 from homan.mocap import process_handmocap_predictions
 from homan.prepare.gtmasks import render_gt_masks
-from homan.utils.bbox import bbox_wh_to_xy, bbox_xy_to_wh
+from homan.utils.bbox import bbox_wh_to_xy, bbox_xy_to_wh, make_bbox_square
 from homan.viz.vizframeinfo import viz_frame_info
-
+from homan.constants import REND_SIZE
 import os
 from libyana.verify import checkshape
 
+from detectron2.structures import BitMasks
+
 
 def process_hand_boxes(image, hand_boxes, hand_preds, mask_extractor,
-                       image_size):
+                       image_size, hand_masks=None):
     if isinstance(hand_boxes, list):
         hand_boxes = np.stack(hand_boxes)
-    hand_annots = mask_extractor.masks_from_bboxes(image,
-                                                   hand_boxes,
-                                                   class_idx=0,
-                                                   pred_classes=None,
-                                                   image_size=image_size)
-    full_masks = np.stack([annot["full_mask"] for annot in hand_annots])
+    if hand_masks is None:
+        hand_annots = mask_extractor.masks_from_bboxes(image,
+                                                    hand_boxes,
+                                                    class_idx=0,
+                                                    pred_classes=None,
+                                                    image_size=image_size)
+        full_masks = np.stack([annot["full_mask"] for annot in hand_annots])
+    else:
+        # hand_annots = mask_extractor.masks_from_bboxes(image,
+        #                                             hand_boxes,
+        #                                             class_idx=0,
+        #                                             pred_classes=None,
+        #                                             image_size=image_size)
+        # full_masks_gt = np.stack([annot["full_mask"] for annot in hand_annots])
+
+        full_masks = hand_masks
+
+        # print(full_masks.shape, full_masks_gt.shape)
+        # import pdb; pdb.set_trace()
     hand_parameters = process_handmocap_predictions(
         mocap_predictions=hand_preds,
         bboxes=bbox_wh_to_xy(hand_boxes),
         masks=full_masks,
         image_size=image_size)
     return hand_parameters
+
 
 
 def get_frame_infos(images_np,
@@ -42,7 +58,10 @@ def get_frame_infos(images_np,
                     obj_bboxes=None,
                     camintr=None,
                     debug=True,
-                    image_size=640):
+                    image_size=640,
+                    obj_masks=None,
+                    hand_masks=None,
+                    ):
     """
     Arguments:
         images_np (list[np.ndarray]): List of input images
@@ -75,6 +94,8 @@ def get_frame_infos(images_np,
                 # Save visualization of middle frame
                 debug=debug and (image_idx == len(images_np) // 2),
                 image_size=image_size,
+                obj_masks=obj_masks[image_idx:image_idx+1] if obj_masks is not None else None,
+                hand_masks=hand_masks[image_idx:image_idx+1] if hand_masks is not None else None,
             )
             person_parameters.append(frame_info["person_parameters"])
             obj_mask_infos.append(frame_info["obj_mask_infos"])
@@ -95,7 +116,9 @@ def get_frame_info(image,
                    obj_bboxes=None,
                    camintr=None,
                    debug=True,
-                   image_size=640):
+                   image_size=640,
+                   hand_masks=None,
+                   obj_masks=None,):
     """
     Regress frame hand pose and hand+object masks
 
@@ -130,7 +153,8 @@ def get_frame_info(image,
                                              hand_boxes=left_boxes,
                                              hand_preds=left_preds,
                                              mask_extractor=mask_extractor,
-                                             image_size=image_size)
+                                             image_size=image_size,
+                                             hand_masks=hand_masks,)
         all_parameters.append(left_parameters)
     if hand_predictor is not None:
         right_preds = [pred['right_hand'] for pred in mocap_predictions]
@@ -147,7 +171,8 @@ def get_frame_info(image,
                                               hand_boxes=right_boxes,
                                               hand_preds=right_preds,
                                               mask_extractor=mask_extractor,
-                                              image_size=image_size)
+                                              image_size=image_size,
+                                              hand_masks=hand_masks,)
         all_parameters.append(right_parameters)
 
     for key in all_parameters[0].keys():
@@ -158,11 +183,24 @@ def get_frame_info(image,
             person_parameters[key] = torch.cat(
                 [param[key] for param in all_parameters])
     # Handling only 1 object
-    obj_mask_infos = mask_extractor.masks_from_bboxes(
-        image,
-        bbox_xy_to_wh(obj_bboxes),
-        pred_classes=None,
-        image_size=image_size)[0]
+    if obj_masks is None:
+        obj_mask_infos = mask_extractor.masks_from_bboxes(
+            image,
+            bbox_xy_to_wh(obj_bboxes),
+            pred_classes=None,
+            image_size=image_size)[0]
+    else:
+        obj_mask_infos = hijack_obj_mask_gt(obj_bboxes, obj_masks, image_size)
+
+        # obj_mask_infos_gt = mask_extractor.masks_from_bboxes(
+        #     image,
+        #     bbox_xy_to_wh(obj_bboxes),
+        #     pred_classes=None,
+        #     image_size=image_size)[0]
+        
+        # for key in obj_mask_infos.keys():
+        #     print(key, obj_mask_infos[key].shape, obj_mask_infos_gt[key].shape)
+        # import pdb; pdb.set_trace()
 
     # Masks with -1 for occluded parts, by merging rendered and segmentation masks
     if (len(person_parameters) > 0) and ("rend" in person_parameters):
@@ -182,6 +220,25 @@ def get_frame_info(image,
     )
 
     return frame_infos
+
+def hijack_obj_mask_gt(obj_bboxes, obj_masks, image_size):
+    bboxes = bbox_xy_to_wh(obj_bboxes)
+    sq_bbox = make_bbox_square(bboxes)
+    sq_bboxes = torch.FloatTensor(bbox_wh_to_xy(sq_bbox))
+
+    bit_masks = BitMasks(obj_masks.cpu())
+    # print(type(bboxes))  
+    # print(bboxes.shape)  # (1, 4)
+    # print(len(bit_masks))
+    crop_masks = bit_masks.crop_and_resize(sq_bboxes, REND_SIZE).clone().detach()
+    # print(crop_masks.shape)
+    obj_mask_infos = {
+        "crop_mask": crop_masks.cpu().numpy()[0],
+        "square_bbox": sq_bbox[0],
+        "bbox": torch.FloatTensor(bboxes[0]),
+        "full_mask": obj_masks[0],
+    }
+    return obj_mask_infos
 
 
 def get_gt_infos(images_np,
