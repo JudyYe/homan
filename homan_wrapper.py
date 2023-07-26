@@ -24,7 +24,8 @@ from homan.lib2d import maskutils
 from homan.visualize import visualize_hand_object
 from homan.viz.colabutils import display_video
 from homan.jointopt import optimize_hand_object
-from jutils import image_utils
+from jutils import image_utils, mesh_utils, hand_utils, geom_utils
+from pytorch3d.structures import Meshes
 
 import sys
 ROOT_DIR = osp.dirname(osp.abspath(__file__))
@@ -53,7 +54,7 @@ class VideoChunks:
         self.start_idx = start_idx
         self.frame_nb = frame_nb  # batch_size 
         self.skip_step = skip_step
-        self.num_batches = np.ceil((len(self.image_names) - self.start_idx) / (self.frame_nb * self.skip_step))
+        self.num_batches = int(np.ceil((len(self.image_names) - self.start_idx) / (self.frame_nb * self.skip_step)))
     
     def __len__(self):
         return self.num_batches
@@ -101,6 +102,29 @@ class HomanWrapper:
     def step2_viz_folder(self):
         return osp.join(self.step2_folder, "viz")
     
+    @torch.no_grad()
+    def extract_my_hoi(self, model):
+        verts_object, _ = model.get_verts_object()
+        faces_object = model.faces_object
+        oObj = Meshes(verts_object, faces_object)
+        oObj.textures = mesh_utils.pad_texture(oObj, 'white')
+
+        pca = model.mano_pca_pose
+        rot = model.mano_rot
+        beta = model.mano_betas
+
+        hand_wrapper = hand_utils.ManopthWrapper().to(verts_object.device)
+        hA = hand_wrapper.pca_to_pose(pca, add_mean=True)
+        
+        r,t = hand_utils.cvt_axisang_t_i2o(rot, model.mano_trans)
+        inside = geom_utils.axis_angle_t_to_matrix(r, t)
+        outside = geom_utils.rt_to_homo(
+            rot6d_to_matrix(model.rotations_hand).transpose(-1, -2), 
+            model.translations_hand.squeeze(1))
+        oTh = outside @ inside
+        hTo = geom_utils.inverse_rt(mat=oTh, return_mat=True)
+        return hA, beta, hTo, oObj
+
     def run_video(self, hijack_gt=False, cfg=None):
         prev_model = None
         model_list, image_list = [], []
@@ -117,6 +141,16 @@ class HomanWrapper:
         images_np = np.concatenate(image_list, 0)
         model_seq = minimal_cat(model_list)
         self.visualize(model_seq, images_np, 'seq')
+        with open(os.path.join(self.parent_folder, "model_seq.pkl"), "wb") as f:
+            pickle.dump({
+                'model': model_seq,
+                'images': images_np,
+                }, f)
+        hA, beta, hTo, oObj = self.extract_my_hoi(model_seq)
+        with open(osp.join(self.parent_folder, 'param.pkl'), 'wb') as fp:
+            pickle.dump({
+                'hA': hA, 'beta': beta, 'hTo': hTo, 'oObj': oObj,
+            }, fp)
 
     def run(self, sample, hijack_gt=False, cfg=None, prev_model=None):
         images, images_np, obj_verts_can, obj_faces = self.load_image_cad(sample, self.obj_path)
