@@ -392,7 +392,8 @@ def find_optimal_poses(image_size,
                        num_iterations=50,
                        num_initializations=2000,
                        viz_path="tmp.png",
-                       debug=False):
+                       debug=False,
+                       previous_rotations=None):
     """
     Compute initial object poses.
     Initialize num_initializations initial pose candidates using randomly sampled rotations and heuristic
@@ -417,7 +418,7 @@ def find_optimal_poses(image_size,
         num_initializations (int): TODO
         Ks (list[np.ndarray]): List containing frame_nb (3, 3) intrinsic camera parameters
         num_iterations (int): Number of optimization steps
-
+        previous_rotations (torch.Tensor): num_initializations, 3, 3 rotations
     Returns:
         list[dict]: List of initial poses (rotations, translations) and mask information
             (K_roi, masks, full_mask, target_masks)
@@ -431,7 +432,7 @@ def find_optimal_poses(image_size,
     faces = npt.tensorify(faces).cuda()
 
     # Keep track of previous rotations to get temporally consistent initialization
-    previous_rotations = None
+    # previous_rotations = None
     all_object_parameters = []
     all_losses = []
     for image, annotation, K in zip(images, annotations, Ks):
@@ -467,6 +468,7 @@ def find_optimal_poses(image_size,
         all_object_parameters.append(object_parameters)
         previous_rotations = rot6d_to_matrix(model.rotations.detach(
         ))  # num_initializations, 3, 2 rot6d rotations
+        print('rotation', previous_rotations.shape)  
         all_losses.append(iou.detach())
     all_losses = torch.stack(all_losses)  # frame_nb, num_initializations
 

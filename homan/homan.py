@@ -6,6 +6,7 @@ import numpy as np
 import torch
 from torch import nn
 from tqdm import tqdm
+from collections import defaultdict
 
 import os.path as osp
 from homan import lossutils
@@ -22,6 +23,47 @@ from homan.utils.geometry import combine_verts, matrix_to_rot6d, rot6d_to_matrix
 from libyana.conversions import npt
 from libyana.lib3d import trans3d
 from libyana.verify.checkshape import check_shape
+from jutils import model_utils
+
+def minimal_cat(model_list):
+    key_values = defaultdict(list)
+    for model in model_list:
+        model = model.cpu()
+        key_values['translations_object'].append(model.translations_object)
+        key_values['rotations_object'].append(model.rotations_object)
+        key_values['faces_object'].append(model.faces_object)
+        key_values['translations_hand'].append(model.translations_hand)
+        key_values['rotations_hand'].append(model.rotations_hand)
+        key_values['verts_hand_og'].append(model.verts_hand_og)
+        key_values['ref_verts2d_hand'].append(model.ref_verts2d_hand)
+        key_values['mano_trans'].append(model.mano_trans)
+        key_values['mano_rot'].append(model.mano_rot)
+        key_values['mano_betas'].append(model.mano_betas)
+        key_values['mano_pca_pose'].append(model.mano_pca_pose)
+        key_values['masks_object'].append(model.masks_object)
+        key_values['masks_hand'].append(model.masks_human)
+        key_values['camintr_rois_object'].append(model.camintr_rois_object)
+        key_values['camintr_rois_hand'].append(model.camintr_rois_hand)
+        key_values['target_masks_object'].append(model.ref_mask_object)  # this is hacks!
+        key_values['target_masks_hand'].append(model.ref_mask_hand)
+        key_values['camintr'].append(model.camintr)
+
+    # print(model.faces_hand.shape, model.faces_object.shape, model.verts_object_og.shape)
+    for k, v in key_values.items():
+        key_values[k] = torch.cat(v, 0)
+    key_values['faces_hand'] = model.faces_hand.cpu()
+    key_values['verts_object_og'] = model.verts_object_og.cpu()
+    key_values['int_scale_init'] = model.int_scales_hand.cpu().item()
+    key_values['hand_proj_mode'] = model.hand_proj_mode
+    key_values['class_name'] = 'default'
+    key_values['optimize_object_scale'] = model.optimize_object_scale
+    key_values['image_size'] = model.image_size
+    key_values['hand_sides'] = model.hand_sides
+
+    # weird but on cuda
+    key_values = model_utils.to_cuda(key_values, 'cuda:0')
+    model = HOMan(**key_values)
+    return model
 
 
 class HOMan(nn.Module):
@@ -55,7 +97,7 @@ class HOMan(nn.Module):
         optimize_ortho_cam=True,
         hand_proj_mode="persp",
         optimize_mano=True,
-        optimize_mano_beta=True,
+        optimize_mano_beta=False,
         inter_type="centroid",
         image_size=640,
     ):
@@ -121,7 +163,7 @@ class HOMan(nn.Module):
         self.register_buffer("ref_verts2d_hand", ref_verts2d_hand)
 
         init_scales = int_scale_init * torch.ones(1).float()
-        init_scales_mean = torch.Tensor(int_scale_init).float()
+        # init_scales_mean = torch.Tensor(int_scale_init).float()
         self.optimize_object_scale = optimize_object_scale
         if optimize_object_scale:
             self.int_scales_object = nn.Parameter(

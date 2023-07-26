@@ -4,10 +4,9 @@ from filelock import FileLock
 import wandb
 from hydra import main
 from homan_wrapper import HomanWrapper
-from jutils import slurm_utils
 
 def build_logger(cfg):
-    os.makedirs(cfg.exp_dir + 'wandb', exist_ok=True)
+    os.makedirs(cfg.exp_dir + '/wandb', exist_ok=True)
     wandb.login(key='8e99ff14eba9677d715999d7a282c9ff79cfb9bf')
     # add lock of runid
     lockfile = FileLock(f"{cfg.exp_dir}/runid.lock")
@@ -28,6 +27,7 @@ def build_logger(cfg):
             fp.write(log.id)
     return log
 
+
 @main(config_path="configs", config_name="fit")
 def opt_pose(cfg):
     # slurm_utils.update_pythonpath_relative_hydra()
@@ -37,19 +37,29 @@ def opt_pose(cfg):
         cfg.image_dir,
         cfg.obj_file,
         start_idx=0,
-        time=-1)
-    homan_wrapper.run(hijack_gt=True, cfg=cfg)
+        batch_size=10,
+        # skip_step=1,
+        )
+    homan_wrapper.run_video(hijack_gt=True, cfg=cfg)
     
     if cfg.logging == 'wandb':
         log = build_logger(cfg)
-        wandb.log(
-            {
-                'opt/step2': wandb.Video(osp.join(cfg.exp_dir, 'jointoptim_step2.mp4')),
-                'opt/step3': wandb.Video(osp.join(cfg.exp_dir, 'jointoptim_step3.mp4')),
-                'evidence/mask': wandb.Image(osp.join(cfg.exp_dir, 'super2d.png')),
-            }
-        )
+        for i, sample in enumerate(homan_wrapper.dataset):
+            exp_dir = sample['sample_folder']
+            wandb.log(
+                {
+                    'opt/step2': wandb.Video(osp.join(exp_dir, 'jointoptim_step2.mp4')),
+                    'opt/step3': wandb.Video(osp.join(exp_dir, 'jointoptim_step3.mp4')),
+                    'evidence/mask': wandb.Image(osp.join(exp_dir, 'super2d.png')),
+                    'clip/fine': wandb.Video(osp.join(exp_dir, 'final_points_fine.mp4')),
+                    'clip/coarse': wandb.Video(osp.join(exp_dir, 'final_points_coarse.mp4')),
+                }
+            )
     
+        wandb.log(
+            {'seq', wandb.Video(osp.join(cfg.exp_dir, 'final_points_seq.mp4'))}
+        )
 
+        
 if __name__ == '__main__':
     opt_pose()
