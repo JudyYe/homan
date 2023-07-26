@@ -1,3 +1,4 @@
+import numpy as np
 from homan.utils.camera import (
     compute_transformation_persp,
 )
@@ -47,17 +48,34 @@ def eval_model(cfg):
         start_idx=0,
         batch_size=10,
     )
-    model_list = []
+    model_list, image_list = [], []
     print(len(homan_wrapper.dataset.image_names), len(homan_wrapper.dataset))
     for sample in homan_wrapper.dataset:
         with open(osp.join(sample['sample_folder'], 'model.pkl'), 'rb') as fp:
-            model = pickle.load(fp)['model_fine'] 
-        model_list.append(model)
-        if len(model_list) >= 2:
-            break
-    model = minimal_cat(model_list)
+            model = pickle.load(fp)
+        model_list.append(model['model_fine'] )
+        image_list.append(np.array(model['images']))
 
+        # if len(model_list) >= 2:
+            # break
+    model = minimal_cat(model_list)
+    image = np.concatenate(image_list, axis=0)
     hand_wrapper = hand_utils.ManopthWrapper().cuda()
+
+    homan_wrapper.sample_folder = homan_wrapper.parent_folder
+    images_np = np.concatenate(image_list, 0)
+    model_seq = minimal_cat(model_list)
+    homan_wrapper.visualize(model_seq, images_np, 'seq')
+    with open(os.path.join(homan_wrapper.parent_folder, "model_seq.pkl"), "wb") as f:
+        pickle.dump({
+            'model': model_seq,
+            'images': images_np,
+            }, f)
+    hA, beta, hTo, oObj = homan_wrapper.extract_my_hoi(model_seq)
+    with open(osp.join(homan_wrapper.parent_folder, 'param.pkl'), 'wb') as fp:
+        pickle.dump({
+            'hA': hA, 'beta': beta, 'hTo': hTo, 'oObj': oObj,
+        }, fp)
 
     # mano_pca_pose = torch.ones([1, 45]).cuda()
     # mano_rot = torch.ones([1, 3]).cuda()
@@ -93,38 +111,38 @@ def eval_model(cfg):
     # image_utils.save_gif(image_list, osp.join(cfg.exp_dir, 'hand'))
 
 
-    verts_hand, _ = model.get_verts_hand()
-    verts_object, _ = model.get_verts_object()
-    faces_hand = model.faces_hand
-    faces_object = model.faces_object
-    print(verts_hand.shape, verts_object.shape, faces_hand.shape, faces_object.shape)
-    hand = Meshes(verts_hand, faces_hand.repeat(len(verts_hand), 1, 1))
-    hand.textures = mesh_utils.pad_texture(hand, 'blue')
-    obj = Meshes(verts_object, faces_object)
-    obj.textures = mesh_utils.pad_texture(obj, 'white')
-    hoi = mesh_utils.join_scene([hand, obj])
-    image_list = mesh_utils.render_geom_rot(hoi, scale_geom=True)
-    image_utils.save_gif(image_list, osp.join(cfg.exp_dir, 'hoi'))
+    # verts_hand, _ = model.get_verts_hand()
+    # verts_object, _ = model.get_verts_object()
+    # faces_hand = model.faces_hand
+    # faces_object = model.faces_object
+    # print(verts_hand.shape, verts_object.shape, faces_hand.shape, faces_object.shape)
+    # hand = Meshes(verts_hand, faces_hand.repeat(len(verts_hand), 1, 1))
+    # hand.textures = mesh_utils.pad_texture(hand, 'blue')
+    # obj = Meshes(verts_object, faces_object)
+    # obj.textures = mesh_utils.pad_texture(obj, 'white')
+    # hoi = mesh_utils.join_scene([hand, obj])
+    # image_list = mesh_utils.render_geom_rot(hoi, scale_geom=True)
+    # image_utils.save_gif(image_list, osp.join(cfg.exp_dir, 'hoi'))
 
-    hA, beta, hTo, oObj = homan_wrapper.extract_my_hoi(model)
-    print(hA.shape, model.int_scales_hand)
-    hHand, _ = hand_wrapper(None, hA, th_betas=beta)
-    hObj = mesh_utils.apply_transform(oObj, hTo,)
-    hHoi = mesh_utils.join_scene([hHand, hObj])
-    image_list = mesh_utils.render_geom_rot(hHoi, scale_geom=True)
-    image_utils.save_gif(image_list, osp.join(cfg.exp_dir, 'hoi_param'))
-    image_utils.save_images(image_list[0], osp.join(cfg.exp_dir, 'hoi_param'))
+    # hA, beta, hTo, oObj = homan_wrapper.extract_my_hoi(model)
+    # print(hA.shape, model.int_scales_hand)
+    # hHand, _ = hand_wrapper(None, hA, th_betas=beta)
+    # hObj = mesh_utils.apply_transform(oObj, hTo,)
+    # hHoi = mesh_utils.join_scene([hHand, hObj])
+    # image_list = mesh_utils.render_geom_rot(hHoi, scale_geom=True)
+    # image_utils.save_gif(image_list, osp.join(cfg.exp_dir, 'hoi_param'))
+    # image_utils.save_images(image_list[0], osp.join(cfg.exp_dir, 'hoi_param'))
 
-    # oHoi = mesh_utils.join_scene([oHand, oObj])
+    # # oHoi = mesh_utils.join_scene([oHand, oObj])
+    # # image_list = mesh_utils.render_geom_rot(oHoi, scale_geom=True)
+    # # image_utils.save_gif(image_list, osp.join(cfg.exp_dir, 'hoi_oHoi'))
+    # # image_utils.save_images(image_list[0], osp.join(cfg.exp_dir, 'hoi_oHoi'))
+
+    # oTh = geom_utils.inverse_rt(mat=hTo, return_mat=True)
+    # oHoi = mesh_utils.apply_transform(hHoi, oTh)
     # image_list = mesh_utils.render_geom_rot(oHoi, scale_geom=True)
-    # image_utils.save_gif(image_list, osp.join(cfg.exp_dir, 'hoi_oHoi'))
-    # image_utils.save_images(image_list[0], osp.join(cfg.exp_dir, 'hoi_oHoi'))
-
-    oTh = geom_utils.inverse_rt(mat=hTo, return_mat=True)
-    oHoi = mesh_utils.apply_transform(hHoi, oTh)
-    image_list = mesh_utils.render_geom_rot(oHoi, scale_geom=True)
-    image_utils.save_gif(image_list, osp.join(cfg.exp_dir, 'hoi_param_inv'))
-    image_utils.save_images(image_list[0], osp.join(cfg.exp_dir, 'hoi_param_inv'))
+    # image_utils.save_gif(image_list, osp.join(cfg.exp_dir, 'hoi_param_inv'))
+    # image_utils.save_images(image_list[0], osp.join(cfg.exp_dir, 'hoi_param_inv'))
     return 
 
 

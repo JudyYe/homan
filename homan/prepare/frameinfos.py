@@ -103,7 +103,7 @@ def get_frame_infos(images_np,
                                          sample_folder=sample_folder,
                                          save=False)
             super2d_imgs.append(super2d_img)
-        super2d_imgs = np.concatenate(super2d_imgs[::len(super2d_imgs) // 10],
+        super2d_imgs = np.concatenate(super2d_imgs,
                                       1)
     return person_parameters, obj_mask_infos, super2d_imgs
 
