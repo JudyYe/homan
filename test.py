@@ -6,7 +6,7 @@ from homan.utils.camera import (
 from homan.utils.geometry import rot6d_to_matrix
 import torch
 from pytorch3d.structures import Meshes
-from jutils import mesh_utils, image_utils, image_utils, hand_utils,geom_utils, plot_utils, web_utils
+from jutils import mesh_utils, image_utils, image_utils, hand_utils,geom_utils, plot_utils, web_utils, slurm_utils
 import os
 import os.path as osp
 import pickle
@@ -81,6 +81,7 @@ def eval_model(cfg):
 
 
 @main(config_path="configs", config_name="fit")
+@slurm_utils.slurm_engine()
 def opt_pose(cfg):
     homan_wrapper = HomanWrapper(
         cfg.exp_dir, 
@@ -89,7 +90,7 @@ def opt_pose(cfg):
         start_idx=0,
         batch_size=10,
     )
-    # homan_wrapper.run_video(hijack_gt=True, cfg=cfg)
+    homan_wrapper.run_video(hijack_gt=True, cfg=cfg)
     
     if cfg.logging == 'wandb':
         log = build_logger(cfg)    
@@ -118,6 +119,6 @@ def make_web(cfg):
     web_utils.run(osp.join(cfg.exp_dir, 'vis'), gif_list, width=600)
 
 if __name__ == '__main__':
-    # opt_pose()
-    make_web()
+    opt_pose()
+    # make_web()
     # eval_model()

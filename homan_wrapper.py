@@ -102,8 +102,9 @@ class HomanWrapper:
     def step2_viz_folder(self):
         return osp.join(self.step2_folder, "viz")
     
+    @staticmethod
     @torch.no_grad()
-    def extract_my_hoi(self, model):
+    def extract_my_hoi(model):
         verts_object, _ = model.get_verts_object()
         faces_object = model.faces_object
         oObj = Meshes(verts_object, faces_object)

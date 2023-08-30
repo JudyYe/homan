@@ -13,6 +13,10 @@ index: ${cat}_${ind}
 image_dir: ${environment.data_dir}/HOI4D/${index}/image
 obj_file: ${environment.data_dir}/HOI4D/${index}/oObj.obj
 
+ngpu: 1
+
+obj_index: oObj
+
 logging: wandb
 
 coarse:

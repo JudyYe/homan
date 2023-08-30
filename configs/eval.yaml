@@ -1,0 +1,19 @@
+defaults:
+  - environment: fair
+  - hydra: default
+
+expname: dev/tmp
+output: ${environment.output}
+exp_dir: ${output}/${expname}
+
+
+video: False
+fig: False
+
+cat: Mug
+ind: 1
+index: ${cat}_${ind}
+image_dir: ${environment.data_dir}/HOI4D/${index}/image
+
+ngpu: 1
+T_num: 10
